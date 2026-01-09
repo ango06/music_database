@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %} {% endblock %}- FlaskApp</title>
+    <style>
+        nav a {
+            color: #d64161;
+            font-size: 3em;
+            margin-left: 50px;
+            text-decoration: none;
+        }
+        .song {
+            padding: 20px;
+            margin: 10px;
+            background-color: #f7f4f4;
+        }
+        .img {
+            width: 200px;
+            float: right;
+        }
+
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="{{ url_for('index') }}">Directory</a>
+        <a href="{{ url_for('create') }}">Add Music</a>
+        <a href="{{ url_for('recommend') }}">Get Music Recommendations</a>
+    </nav>
+    <hr>
+    <div class="content">
+        {% block content %} {% endblock %}
+    </div>
+</body>
+</html>

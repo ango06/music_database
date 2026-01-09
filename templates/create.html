@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h1>{% block title %} Add a New Song {% endblock %}</h1>
+    <form method="post">
+        <p>
+            <label for="song">Song Name</label>
+            <input type="text" name="song" placeholder="Song name" required />
+        </p>
+
+        <p>
+            <label for="artist">Artist</label>
+            <input type="text" name="artist" placeholder="Song artist" required />
+        </p>
+
+        <p>
+            <label for="streams">Total Streams on Spotify</label>
+            <input type="number" name="streams" placeholder="Song streams" value="0" />
+        </p>
+
+        <p>
+            <label for="link">Album Cover Image Link</label>
+            <br>
+            <textarea name="link"
+                    placeholder="url"
+                    rows="5"
+                    cols="60"
+                    value=""
+                    ></textarea>
+        </p>
+
+        <p>
+            <button type="submit">Submit</button>
+        </p>
+    </form>
+{% endblock %}
