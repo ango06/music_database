@@ -2,34 +2,48 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{% block title %} {% endblock %}- FlaskApp</title>
+    <title>{% block title %} {% endblock %}</title>
     <style>
         nav a {
-            color: #d64161;
-            font-size: 3em;
+            color: #583F60;
+            font-size: 2.4em;
             margin-left: 50px;
             text-decoration: none;
         }
-        .song {
+        .songCard {
             padding: 20px;
             margin: 10px;
-            background-color: #f7f4f4;
+            background-color: #BDA48D;
+            height: 200px;
         }
         .img {
             width: 200px;
             float: right;
         }
+        .center {
+            text-align: center;
+        }
+        .centerSelf {
+            justify-self: center;
+            align-self: center;
+        }
+        .centerItems {
+            justify-content: center;
+        }
+        .body {
+            background-color: #FAE09E;
+        }
 
     </style>
 </head>
-<body>
+<body class="body">
     <nav>
         <a href="{{ url_for('index') }}">Directory</a>
         <a href="{{ url_for('create') }}">Add Music</a>
         <a href="{{ url_for('recommend') }}">Get Music Recommendations</a>
     </nav>
     <hr>
-    <div class="content">
+    <div>
         {% block content %} {% endblock %}
     </div>
 </body>

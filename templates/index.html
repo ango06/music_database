@@ -1,15 +1,15 @@
 {% extends 'base.html' %}
 
 {% block content %}
-    <h1>{% block title %} Music {% endblock %}</h1>
-    <p>Add options for row and card view</p>
+    <h1>{% block title %} My Songs {% endblock %}</h1>
+    <h1 class="center">Row View</h1>
     {% for song in music %}
-        <div class='song'>
+        <div class='songCard'>
             <img src="{{ song[6] }}" class="img" />
             <h3>{{ song[1] }} by {{ song[2] }}</h3>
             <p>{{ song[3] }}</p>
             <i><p>({{ song[4] }} minutes)</p></i>
-            <p>{{ song[5] }} streams</p>
+            <p>edit</p>
             <form action="/update" method="post">
                 <input type="hidden" name="id" value="{{ song[0] }}">
                 <input type="text" name="song" value="{{ song[1] }}">

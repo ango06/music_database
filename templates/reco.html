@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Recommendations</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .selection-form {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        button {
+            background-color: #1DB954;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+        button:hover {
+            background-color: #1ed760;
+        }
+        .selected-song {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .selected-song h2 {
+            margin-top: 0;
+            color: #1DB954;
+        }
+        .selected-song img {
+            max-width: 200px;
+            border-radius: 8px;
+        }
+        .recommendations {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        .song-card {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .song-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .song-card img {
+            width: 100%;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .song-card h3 {
+            margin: 10px 0 5px 0;
+            font-size: 18px;
+            color: #333;
+        }
+        .song-card p {
+            margin: 5px 0;
+            color: #666;
+            font-size: 14px;
+        }
+        .badge {
+            display: inline-block;
+            background: #1DB954;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-right: 5px;
+            margin-top: 5px;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #1DB954;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+        .no-recommendations {
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 8px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('index') }}" class="back-link">← Back to Music Library</a>
+    
+    <h1>🎵 Music Recommendations</h1>
+    
+    <div class="selection-form">
+        <h2>Select a Song</h2>
+        <form method="POST">
+            <select name="song_id" required>
+                <option value="">-- Choose a song to get recommendations --</option>
+                {% for song in all_songs %}
+                    <option value="{{ song[0] }}" {% if selected_song and selected_song[0] == song[0] %}selected{% endif %}>
+                        {{ song[1] }} - {{ song[2] }}
+                    </option>
+                {% endfor %}
+            </select>
+            <button type="submit">Get Recommendations</button>
+        </form>
+    </div>
+
+    {% if selected_song %}
+    <div class="selected-song">
+        <h2>Based on your selection:</h2>
+        <div style="display: flex; gap: 20px; align-items: center;">
+            <img src="{{ selected_song[7] }}" alt="{{ selected_song[1] }}">
+            <div>
+                <h3>{{ selected_song[1] }}</h3>
+                <p><strong>Artist:</strong> {{ selected_song[2] }}</p>
+                <p><strong>Album:</strong> {{ selected_song[3] }}</p>
+                <p><strong>Duration:</strong> {{ "%.2f"|format(selected_song[5]) }} min</p>
+                <p><strong>Streams:</strong> {{ "{:,}".format(selected_song[6]) }}</p>
+                {% if selected_song[4] %}
+                <div>
+                    <strong>Genres:</strong>
+                    {% for genre in selected_song[4] %}
+                        <span class="badge">{{ genre }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <h2>Recommended Songs:</h2>
+    
+    {% if recommendations %}
+    <div class="recommendations">
+        {% for song in recommendations %}
+        <div class="song-card">
+            <img src="{{ song[7] }}" alt="{{ song[1] }}">
+            <h3>{{ song[1] }}</h3>
+            <p><strong>{{ song[2] }}</strong></p>
+            <p>Album: {{ song[3] }}</p>
+            <p>Duration: {{ "%.2f"|format(song[5]) }} min</p>
+            <p>Streams: {{ "{:,}".format(song[6]) }}</p>
+            {% if song[4] %}
+            <div>
+                {% for genre in song[4] %}
+                    <span class="badge">{{ genre }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="no-recommendations">
+        <p>No recommendations available. Make sure you have at least 2 songs in your database!</p>
+    </div>
+    {% endif %}
+    {% endif %}
+</body>
+</html>

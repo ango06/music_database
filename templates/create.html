@@ -1,8 +1,9 @@
 {% extends 'base.html' %}
 
 {% block content %}
-    <h1>{% block title %} Add a New Song {% endblock %}</h1>
-    <form method="post">
+    <h1 class="center">{% block title %} Add a New Song {% endblock %}</h1>
+    <div class="centerSelf">
+        <form method="post">
         <p>
             <label for="song">Song Name</label>
             <input type="text" name="song" placeholder="Song name" required />
@@ -33,4 +34,5 @@
             <button type="submit">Submit</button>
         </p>
     </form>
+    </div>
 {% endblock %}

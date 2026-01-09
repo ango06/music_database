@@ -10,7 +10,7 @@ import json
 
 # for recommender
 import pandas as pd
-import numpy as np
+# import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 # import matplotlib.pyplot as plt
@@ -25,10 +25,13 @@ client_secret = os.getenv('CLIENT_SECRET')
 # print(client_id, client_secret)
 
 app = Flask(__name__)
+
+# Global variables for recommendation system
+kaggle_data = None  # Full Kaggle dataset
+user_data = None    # Your database songs
+cosine_sim = None
+
 # set up your database connection and create a single Flask route to use that connection
-
-
-
 def get_db_connection():
     # opens connection
     conn = psycopg2.connect(host='localhost',
@@ -38,6 +41,194 @@ def get_db_connection():
                             password=os.environ['DB_PASSWORD'])
     return conn
     # connection object used to access the database
+
+
+# get Spotify dataset from Kaggle
+# load once upon startup
+def load_large_dataset():
+    global kaggle_data
+
+    try:
+        kaggle_data = pd.read_csv('spotify_dataset.csv')
+        print(f"✓ Loaded {len(kaggle_data)} songs from Kaggle dataset")
+
+        # combine features into a single feature
+        kaggle_data['combined_features'] = (
+            kaggle_data['track_name'].fillna('') + ' ' +
+            kaggle_data['artists'].fillna('') + ' ' +
+            kaggle_data['album_name'].fillna('')
+        )
+
+        return True
+    
+    except FileNotFoundError:
+        print("spotify_dataset.csv not found!!")
+        print("https://www.kaggle.com/datasets/maharshipandya/-spotify-tracks-dataset")
+        return False
+    except Exception as e:
+        print(f"Error loading dataset: {e}")
+        return False
+    
+    
+# load and build
+    # 1. Reload songs from database (gets the NEW song)
+    # 2. Combine with Kaggle dataset
+    # 3. Recalculate TF-IDF matrix
+    # 4. Rebuild cosine_sim matrix (now 4x4 with Song D!)
+def recommender():
+    # combine my songs and the Kaggle dataset to build the similarity matrix
+    global user_data, kaggle_data, cosine_sim
+
+    # load my songs from my database
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('SELECT * FROM music;')
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    # Convert your songs to DataFrame
+    user_data = pd.DataFrame(data, columns=['id', 'song', 'artist', 'album', 'genre', 'duration_min', 'streams', 'image', 'release_date', 'popularity'])
+    
+    if len(user_data) == 0:
+        print("No songs in personal database yet")
+        return False
+    
+    # Convert genre list to string for your songs
+    user_data['genre_str'] = user_data['genre'].apply(lambda x: ' '.join(x) if isinstance(x, list) else str(x))
+    
+    # Create combined features for your songs
+    user_data['combined_features'] = (
+        user_data['genre_str'].fillna('') + ' ' +
+        user_data['artist'].fillna('') + ' ' +
+        user_data['song'].fillna('')
+    )
+    
+    # Add a marker to distinguish your songs from Kaggle songs
+    user_data['source'] = 'user_library'
+    
+    if kaggle_data is not None:
+        # Add marker to Kaggle songs
+        kaggle_subset = kaggle_data.copy()
+        kaggle_subset['source'] = 'kaggle'
+        
+        # Combine both datasets
+        # We only need combined_features and source columns for recommendation
+        user_features = user_data[['combined_features', 'source']].copy()
+        kaggle_features = kaggle_subset[['combined_features', 'source']].copy()
+        
+        combined_data = pd.concat([user_features, kaggle_features], ignore_index=True)
+        
+        print(f"✓ Combined dataset: {len(user_data)} your songs + {len(kaggle_data)} Kaggle songs")
+    else:
+        # If Kaggle dataset not loaded, just use your songs
+        combined_data = user_data[['combined_features', 'source']].copy()
+        print("⚠ Using only your library (Kaggle dataset not loaded)")
+    
+    # Build TF-IDF matrix on combined dataset
+    tfidf = TfidfVectorizer(stop_words='english')
+    tfidf_matrix = tfidf.fit_transform(combined_data['combined_features'])
+    
+    # Compute cosine similarity
+    cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
+    
+    print("✓ Recommendation system ready!")
+    return True
+
+
+def get_recommendations(song_id, top_n=10, include_user_songs=False):
+    """
+    Get recommendations from Kaggle dataset based on your song
+    
+    Args:
+        song_id: ID of song from your database
+        top_n: Number of recommendations to return
+        include_user_songs: If True, can recommend from your library too
+    
+    Returns:
+        List of recommended songs from Kaggle dataset
+    """
+    global user_data, kaggle_data, cosine_sim
+    
+    if cosine_sim is None or user_data is None:
+        return []
+    
+    # Find the index of your song in the combined dataset
+    # Your songs are at the beginning (indices 0 to len(user_data)-1)
+    song_row = user_data[user_data['id'] == song_id]
+    if len(song_row) == 0:
+        print("Song not found")
+        return []
+    
+    # Get the position in user_data, which is same as position in combined dataset
+    idx = user_data[user_data['id'] == song_id].index[0]
+    
+    # Get similarity scores for all songs
+    sim_scores = list(enumerate(cosine_sim[idx]))
+    
+    # Sort by similarity score
+    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+    
+    # Filter recommendations
+    recommendations = []
+    user_library_size = len(user_data)
+    
+    for i, score in sim_scores:
+        # Skip the song itself
+        if i == idx:
+            continue
+        
+        # Check if this is from Kaggle dataset
+        is_kaggle_song = i >= user_library_size
+        
+        if include_user_songs:
+            # Include everything
+            recommendations.append((i, score, is_kaggle_song))
+        else:
+            # Only include Kaggle songs
+            if is_kaggle_song:
+                recommendations.append((i, score, is_kaggle_song))
+        
+        # Stop when we have enough
+        if len(recommendations) >= top_n:
+            break
+    
+    # Convert to list of song details
+    result = []
+    for idx_val, score, is_kaggle in recommendations:
+        if is_kaggle:
+            # Get from Kaggle dataset
+            kaggle_idx = idx_val - user_library_size
+            row = kaggle_data.iloc[kaggle_idx]
+            result.append({
+                'song': row['track_name'],
+                'artist': row['artists'],
+                'album': row.get('album_name', 'Unknown'),
+                'genre': row.get('track_genre', 'Unknown'),
+                'popularity': row.get('popularity', 0),
+                'duration_min': row.get('duration_ms', 0) / 60000,
+                'source': 'kaggle',
+                'similarity_score': round(score * 100, 1)
+            })
+        else:
+            # Get from your library
+            row = user_data.iloc[idx_val]
+            result.append({
+                'song': row['song'],
+                'artist': row['artist'],
+                'album': row['album'],
+                'genre': row['genre_str'] if 'genre_str' in row else row['genre'],
+                'popularity': row.get('popularity', 0),
+                'duration_min': row['duration_min'],
+                'image': row.get('image', ''),
+                'source': 'user_library',
+                'similarity_score': round(score * 100, 1)
+            })
+    
+    return result
+
+
+
 
 # index page to display with main route
 @app.route('/')
@@ -86,6 +277,10 @@ def create():
         conn.commit()
         cur.close()
         conn.close()
+
+        # rebuild recommendation after new added songs
+        recommender()
+
         return redirect(url_for('index')) # so the user can see the new addition directly after
 
     return render_template('create.html')
@@ -107,6 +302,9 @@ def update():
     conn.commit()
     cur.close()
     conn.close()
+
+    recommender()
+
     return redirect(url_for('index'))
 
 
@@ -125,23 +323,48 @@ def delete():
     conn.commit()
     cur.close()
     conn.close()
+
+    # keeps it up to date
+    # slower with a larger Kaggle dataset
+    # could remove if I don't need to update and wanted faster CRUD
+    # requires restarting flask app for new recs
+    recommender()
+
     return redirect(url_for('index'))
 
 @app.route('/recommend/', methods=['GET', 'POST'])
 def recommend():
+    recommendations = []
+    selected_song = None
+    all_songs = []
+    
+    # Get all songs for dropdown
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('SELECT id, song, artist FROM music ORDER BY song;')
+    all_songs = cur.fetchall()
+    cur.close()
+    conn.close()
+
+
     if request.method == 'POST':
-        # get music from database
+        song_id = int(request.form.get('song_id'))
+        
+        # Get selected song details
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute('SELECT song, artist, album, duration_min, streams FROM music;')
-        # cur.execute('SELECT * FROM music;') if image link too
-        music = cur.fetchall()
+        cur.execute('SELECT * FROM music WHERE id=%s;', (song_id,))
+        selected_song = cur.fetchone()
         cur.close()
         conn.close()
-
-    # in an if (): return render_template('recommend.html', recommendations=recommendations)
+        
+        # Get recommendations from Kaggle dataset
+        recommendations = get_recommendations(song_id, top_n=20, include_user_songs=False)
     
-    return render_template('recommend.html')
+    return render_template('recommend.html', 
+                         recommendations=recommendations, 
+                         selected_song=selected_song,
+                         all_songs=all_songs)
 
 
 
@@ -220,3 +443,34 @@ def get_genre(id):
     genres = json.loads(result.content)["genres"]
 
     return genres
+
+
+
+
+# Initialize recommendation system on startup
+print("=" * 60)
+print("INITIALIZING MUSIC RECOMMENDATION SYSTEM")
+print("=" * 60)
+
+# Step 1: Load Kaggle dataset
+if load_large_dataset():
+    print("✓ Step 1: Kaggle dataset loaded")
+else:
+    print("⚠ Step 1: Kaggle dataset not available")
+    print("  Download: https://www.kaggle.com/datasets/maharshipandya/-spotify-tracks-dataset")
+    print("  Save as: dataset.csv in your project folder")
+
+# Step 2: Build recommender
+try:
+    if recommender():
+        print("✓ Step 2: Recommendation system ready!")
+    else:
+        print("⚠ Step 2: Add songs to your database first")
+except Exception as e:
+    print(f"⚠ Error: {e}")
+
+print("=" * 60)
+
+# issues with flask run -> flask run --debug --no-reload --port 5001
+if __name__ == "__main__":
+    app.run(debug=True, use_reloader=False, port=5001)
